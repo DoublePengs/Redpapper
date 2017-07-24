@@ -20,6 +20,8 @@ import java.util.List;
  * Created by Administrator on 2016/7/19.
  */
 public class RobRPService extends AccessibilityService {
+
+    private static final String TAG = "RobRPService----------";
     /**
      * 键盘锁的对象
      */
@@ -49,20 +51,23 @@ public class RobRPService extends AccessibilityService {
      * 微信几个页面的包名+地址。用于判断在哪个页面
      */
     private String LAUCHER = "com.tencent.mm.ui.LauncherUI";
-    private String LUCKEY_MONEY_DETAIL = "com.tencent.mm.plugin.luckymoney.ui.LuckyMoneyDetailUI";
-    private String LUCKEY_MONEY_RECEIVER = "com.tencent.mm.plugin.luckymoney.ui.LuckyMoneyReceiveUI";
+    private String LUCKY_MONEY_DETAIL = "com.tencent.mm.plugin.luckymoney.ui.LuckyMoneyDetailUI";
+    private String LUCKY_MONEY_RECEIVER = "com.tencent.mm.plugin.luckymoney.ui"; // com.tencent.mm.plugin.luckymoney.ui.LuckyMoneyReceiveUI
 
     @Override
     public void onAccessibilityEvent(final AccessibilityEvent event) {
+        Log.e(TAG, "onAccessibilityEvent: ---- 接收到了事件 ");
         //接收事件
         int eventType = event.getEventType();
         switch (eventType) {
             case AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED: {
+                Log.e(TAG, "onAccessibilityEvent: ---- 通知栏状态发生变化 ");
                 //通知栏事件
                 List<CharSequence> texts = event.getText();
                 if (texts.isEmpty())
                     break;
                 for (CharSequence text : texts) {
+                    Log.e(TAG, "onAccessibilityEvent: ----  " + text);
                     String content = text.toString();
                     //通过微信红包这个关键词来判断是否红包。（如果有个朋友取名叫微信红包的话。。。）
                     int i = text.toString().indexOf("[微信红包]");
@@ -75,58 +80,71 @@ public class RobRPService extends AccessibilityService {
                             wakeAndUnlock();
 
                             //打开微信的页面
-                            openWeichaPage(event);
+                            openWechatPage(event);
                         } else {
                             //屏幕是亮的
                             //打开微信的页面
-                            openWeichaPage(event);
+                            openWechatPage(event);
                         }
                     }
                 }
                 break;
             }
             case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED: {
+                Log.e(TAG, "onAccessibilityEvent: ---- 窗口状态---发生变化 ");
+
                 //监测到窗口变化。
                 if (isOpenPage) {
                     //如果是本程序打开了微信页面，那就执行去找红包
                     isOpenPage = false;
                     String className = event.getClassName().toString();
+                    Log.e(TAG, "onAccessibilityEvent: ---- " + className);
                     //是否微信聊天页面的类
                     if (className.equals(LAUCHER)) {
                         findStuff();
                     }
                 }
 
-                if (isOpenRP && LUCKEY_MONEY_RECEIVER.equals(event.getClassName().toString())) {
+
+                if (event.getClassName().toString().contains(LUCKY_MONEY_RECEIVER)) {
                     //如果打开了抢红包页面
                     AccessibilityNodeInfo rootNode1 = getRootInActiveWindow();
                     if (findOpenBtn(rootNode1)) {
                         //如果找到按钮
                         isOpenDetail = true;
-                    } else {
+                    } else if (isOpenRP) {
                         //回到桌面
+                        performGlobalAction(GLOBAL_ACTION_BACK);
                         back2Home();
+                        isOpenRP = false;
                     }
-                    isOpenRP = false;
                 }
 
-                if (isOpenDetail && LUCKEY_MONEY_DETAIL.equals(event.getClassName().toString())) {
-                    //打开了红包详情页面，看下抢了多少钱
-                    findInDatail(getRootInActiveWindow());
+                if (isOpenDetail && LUCKY_MONEY_DETAIL.equals(event.getClassName().toString())) {
+                    // 打开了红包详情页面，看下抢了多少钱
+                    // findInDatail(getRootInActiveWindow());
 
                     isOpenDetail = false;
+                    performGlobalAction(GLOBAL_ACTION_BACK);
                     back2Home();
                 }
                 break;
             }
+            case AccessibilityEvent.TYPE_WINDOWS_CHANGED:
+//                Log.e(TAG, "onAccessibilityEvent: ---- 窗口发生变化 ");
+                break;
+
+            case AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED:
+//                Log.e(TAG, "onAccessibilityEvent: ---- 窗口内容---发生变化 ");
+                break;
         }
         //释放一下资源。
-        releese();
+        release();
     }
 
     /**
-     *  在红包详情页面寻找抢到多少钱。
-     *  实际上不关心的童鞋可以不写这个方法了。
+     * 在红包详情页面寻找抢到多少钱。
+     * 实际上不关心的童鞋可以不写这个方法了。
      */
     private boolean findInDatail(AccessibilityNodeInfo rootNode) {
         for (int i = 0; i < rootNode.getChildCount(); i++) {
@@ -148,7 +166,7 @@ public class RobRPService extends AccessibilityService {
     }
 
     /**
-     *   遍历找东西
+     * 遍历找东西
      */
     private void findStuff() {
         AccessibilityNodeInfo rootNode = getRootInActiveWindow();
@@ -162,7 +180,7 @@ public class RobRPService extends AccessibilityService {
     }
 
     /**
-     *  在聊天页面迭代找红包
+     * 在聊天页面迭代找红包
      */
     private boolean findRP(AccessibilityNodeInfo rootNode) {
         for (int i = 0; i < rootNode.getChildCount(); i++) {
@@ -215,7 +233,7 @@ public class RobRPService extends AccessibilityService {
     }
 
     //打开微信聊天页面
-    private void openWeichaPage(AccessibilityEvent event) {
+    private void openWechatPage(AccessibilityEvent event) {
         if (event.getParcelableData() != null && event.getParcelableData() instanceof Notification) {
             //得到通知的对象
             Notification notification = (Notification) event.getParcelableData();
@@ -273,7 +291,7 @@ public class RobRPService extends AccessibilityService {
     /**
      * 收尾工作
      */
-    private void releese() {
+    private void release() {
         if (kl != null) {
             //..
             kl.reenableKeyguard();
